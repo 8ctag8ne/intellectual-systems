@@ -14,7 +14,7 @@ class MapLoader:
 
     def create_default_map(self):
         """Створює базову карту якщо вона не існує"""
-        map_path = os.path.join(self.maps_dir, "map1.txt")
+        map_path = os.path.join(self.maps_dir, MAP)
         if not os.path.exists(map_path):
             default_map = [
                 "########################",

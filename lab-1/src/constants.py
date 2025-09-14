@@ -18,9 +18,12 @@ ORANGE = (255, 165, 0)
 PINK = (255, 192, 203)
 CYAN = (0, 255, 255)
 
-# Швидкості
-PACMAN_SPEED = 100  # пікселів за секунду
-GHOST_SPEED = 80
+# Швидкості (тепер це затримки між кроками в секундах)
+PACMAN_MOVE_DELAY = 0.2
+GHOST_MOVE_DELAY = 0.25
+
+PACMAN_SPEED=100
+GHOST_SPEED=80
 
 # ASCII символи для карти
 WALL = '#'
@@ -42,3 +45,6 @@ DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
+
+#Вибрана карта
+MAP = "map1.txt"

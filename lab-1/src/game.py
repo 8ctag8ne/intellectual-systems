@@ -15,7 +15,7 @@ class Game:
 
         # Завантажуємо карту
         self.map_loader = MapLoader()
-        self.load_map("map1.txt")  # базова карта
+        self.load_map(MAP)  # базова карта
 
         self.state = GAME_PLAYING
         self.ui = UI(screen, self.font, self.big_font)
@@ -67,32 +67,26 @@ class Game:
 
     def restart_game(self):
         """Перезапускає гру"""
-        self.load_map("map1.txt")
+        self.load_map(MAP)
         self.state = GAME_PLAYING
 
+    # Додати оновлення для привидів з передачею списку привидів
     def update(self, dt):
-        """Оновлює стан гри"""
         if self.state != GAME_PLAYING:
             return
 
-        # Оновлюємо пакмена
         self.pacman.update(dt, self.walls)
 
-        # Перевіряємо збір точок
         pacman_grid_pos = (int(self.pacman.x // CELL_SIZE), int(self.pacman.y // CELL_SIZE))
         if pacman_grid_pos in self.dots:
             self.dots.remove(pacman_grid_pos)
 
-        # Перевіряємо перемогу
         if len(self.dots) == 0:
             self.state = GAME_WON
             return
 
-        # Оновлюємо привидів
         for ghost in self.ghosts:
-            ghost.update(dt, self.walls, self.pacman)
-
-            # Перевіряємо зіткнення з пакменом
+            ghost.update(dt, self.walls, self.pacman, self.ghosts)
             if ghost.check_collision(self.pacman):
                 self.state = GAME_LOST
                 return
