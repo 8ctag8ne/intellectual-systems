@@ -77,7 +77,8 @@ class Game:
 
         self.pacman.update(dt, self.walls)
 
-        pacman_grid_pos = (int(self.pacman.x // CELL_SIZE), int(self.pacman.y // CELL_SIZE))
+        # Перевіряємо збір точок на основі поточної позиції пекмена
+        pacman_grid_pos = (int(self.pacman.grid_x), int(self.pacman.grid_y))
         if pacman_grid_pos in self.dots:
             self.dots.remove(pacman_grid_pos)
 

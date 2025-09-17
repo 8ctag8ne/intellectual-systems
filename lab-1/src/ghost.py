@@ -8,12 +8,14 @@ class Ghost:
     def __init__(self, x, y, color):
         self.grid_x = x // CELL_SIZE
         self.grid_y = y // CELL_SIZE
+        self.target_x = self.grid_x
+        self.target_y = self.grid_y
         self.x = self.grid_x * CELL_SIZE + CELL_SIZE // 2
         self.y = self.grid_y * CELL_SIZE + CELL_SIZE // 2
         self.color = color
         self.direction = random.choice(DIRECTIONS)
-        self.move_timer = 0
-        self.speed = GHOST_MOVE_DELAY
+        self.move_progress = 0.0  # 0.0 - 1.0, прогрес руху до наступної клітинки
+        self.move_speed = 4.0  # швидкість анімації (клітинок в секунду)
         self.size = CELL_SIZE - 4
         self.animation_timer = 0
 
@@ -36,12 +38,11 @@ class Ghost:
         return valid_directions
 
     def update(self, dt, walls, pacman, ghosts):
-        self.move_timer += dt
+        # Оновлення анімації
         self.animation_timer += dt
 
-        if self.move_timer >= self.speed:
-            self.move_timer = 0
-
+        # Якщо ми досягли цільової клітинки
+        if self.grid_x == self.target_x and self.grid_y == self.target_y:
             valid_directions = self.get_valid_directions(walls, ghosts)
 
             if not valid_directions:
@@ -54,12 +55,26 @@ class Ghost:
 
             # Рух у поточному напрямку
             if self.direction in valid_directions:
-                self.grid_x += self.direction[0]
-                self.grid_y += self.direction[1]
-                self.x = self.grid_x * CELL_SIZE + CELL_SIZE // 2
-                self.y = self.grid_y * CELL_SIZE + CELL_SIZE // 2
+                self.target_x = self.grid_x + self.direction[0]
+                self.target_y = self.grid_y + self.direction[1]
+                self.move_progress = 0.0
+
+        # Якщо рухаємося до цільової клітинки
+        if self.grid_x != self.target_x or self.grid_y != self.target_y:
+            self.move_progress += dt * self.move_speed
+
+            if self.move_progress >= 1.0:
+                # Досягли цільової клітинки
+                self.grid_x = self.target_x
+                self.grid_y = self.target_y
+                self.move_progress = 0.0
+            else:
+                # Інтерполюємо позицію
+                self.x = (self.grid_x + (self.target_x - self.grid_x) * self.move_progress) * CELL_SIZE + CELL_SIZE // 2
+                self.y = (self.grid_y + (self.target_y - self.grid_y) * self.move_progress) * CELL_SIZE + CELL_SIZE // 2
 
     def check_collision(self, pacman):
+        # Перевіряємо зіткнення з пекменом на основі їхніх поточних позицій
         distance = math.sqrt((self.x - pacman.x) ** 2 + (self.y - pacman.y) ** 2)
         return distance < (self.size // 2 + pacman.radius)
 
