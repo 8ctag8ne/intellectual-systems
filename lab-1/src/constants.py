@@ -47,4 +47,4 @@ RIGHT = (1, 0)
 DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
 
 #Вибрана карта
-MAP = "map1.txt"
+MAP = "classic_adapted.txt"

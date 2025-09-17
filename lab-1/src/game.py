@@ -13,6 +13,9 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.big_font = pygame.font.Font(None, 72)
 
+        self.map_width = 0
+        self.map_height = 0
+
         # Завантажуємо карту
         self.map_loader = MapLoader()
         self.load_map(MAP)  # базова карта
@@ -20,22 +23,25 @@ class Game:
         self.state = GAME_PLAYING
         self.ui = UI(screen, self.font, self.big_font)
 
+
     def load_map(self, map_name):
         """Завантажує карту з файлу"""
         map_data = self.map_loader.load_map(map_name)
         self.walls = map_data['walls']
+        self.map_width = max(x for x, y in self.walls) + 1
+        self.map_height = max(y for x, y in self.walls) + 1
         self.dots = map_data['dots'].copy()  # копіюємо для подальшого видалення
         self.total_dots = len(self.dots)
 
         # Створюємо пакмена
         pacman_pos = map_data['pacman_start']
-        self.pacman = Pacman(pacman_pos[0], pacman_pos[1])
+        self.pacman = Pacman(pacman_pos[0], pacman_pos[1], self)
 
         # Створюємо привидів
         self.ghosts = []
         for i, ghost_pos in enumerate(map_data['ghost_starts']):
             color = [RED, BLUE, PINK, ORANGE][i % 4]
-            self.ghosts.append(Ghost(ghost_pos[0], ghost_pos[1], color))
+            self.ghosts.append(Ghost(ghost_pos[0], ghost_pos[1], color, self))
 
     def handle_event(self, event):
         """Обробляє події"""
@@ -77,7 +83,8 @@ class Game:
 
         self.pacman.update(dt, self.walls)
 
-        pacman_grid_pos = (int(self.pacman.x // CELL_SIZE), int(self.pacman.y // CELL_SIZE))
+        # Перевіряємо збір точок на основі поточної позиції пекмена
+        pacman_grid_pos = (int(self.pacman.grid_x), int(self.pacman.grid_y))
         if pacman_grid_pos in self.dots:
             self.dots.remove(pacman_grid_pos)
 
