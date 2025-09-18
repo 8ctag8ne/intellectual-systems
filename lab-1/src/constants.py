@@ -1,3 +1,4 @@
+# constants.py (оновлений)
 # Розміри екрана
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -20,10 +21,10 @@ CYAN = (0, 255, 255)
 
 # Швидкості (тепер це затримки між кроками в секундах)
 PACMAN_MOVE_DELAY = 0.2
-GHOST_MOVE_DELAY = 0.25
+GHOST_MOVE_DELAY = 0.21
 
-PACMAN_SPEED=100
-GHOST_SPEED=80
+PACMAN_SPEED = 4.0
+GHOST_SPEED = 3.7
 
 # ASCII символи для карти
 WALL = '#'
@@ -46,5 +47,10 @@ LEFT = (-1, 0)
 RIGHT = (1, 0)
 DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
 
-#Вибрана карта
-MAP = "classic_adapted.txt"
+# Вибрана карта
+MAP = "classic_adapted_2.txt"
+
+# ШІ константи
+AI_DECISION_DELAY = 0.05  # Затримка між рішеннями ШІ в секундах
+DEFAULT_VIEW_DISTANCE = 5  # Стандартна дальність видимості
+MAX_VIEW_DISTANCE = float('inf')  # Необмежена видимість

@@ -1,3 +1,4 @@
+#pacman.py
 import pygame
 import math
 from src.constants import *
@@ -14,7 +15,7 @@ class Pacman:
         self.direction = (0, 0)
         self.next_direction = (0, 0)
         self.move_progress = 0.0  # 0.0 - 1.0, прогресс руху до наступної клітинки
-        self.move_speed = 5.0  # швидкість анімації (клітинок в секунду)
+        self.move_speed = PACMAN_SPEED  # швидкість анімації (клітинок в секунду)
         self.radius = CELL_SIZE // 2 - 2
         self.mouth_angle = 0
         self.mouth_opening = True
