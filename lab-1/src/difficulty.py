@@ -92,6 +92,7 @@ class DifficultyManager:
                         EnhancedVisionRule(sight_radius=6, sound_radius=3, memory_duration=3.0, priority=3.5),
                         PredictPacmanRule(prediction_steps=2, priority=2.5),
                         IntelligentWanderRule(priority=1.0),
+                        SeekPacmanRule(priority=1.0),
                         AvoidOtherGhostsRule(min_distance=1, priority=0.75)
                     ],
                     # Привид 2: Фланговий спеціаліст
@@ -107,6 +108,7 @@ class DifficultyManager:
                         EnhancedVisionRule(sight_radius=5, sound_radius=2, memory_duration=2.0, priority=2.8),
                         BlockEscapeRoute(priority=2.5),
                         IntelligentWanderRule(priority=1.0),
+                        SeekPacmanRule(priority=1.0),
                         AvoidOtherGhostsRule(min_distance=1, priority=0.5)
                     ],
                     # Привид 4: Підтримка
@@ -114,6 +116,7 @@ class DifficultyManager:
                         EnhancedVisionRule(sight_radius=4, sound_radius=2, memory_duration=2.0, priority=2.5),
                         PredictPacmanRule(prediction_steps=1, priority=2.0),
                         SmartPatrolRule(patrol_points=[(12, 6), (12, 12)], priority=1.8),
+                        SeekPacmanRule(priority=1.0),
                         IntelligentWanderRule(priority=1.0)
                     ]
                 ]
@@ -130,6 +133,7 @@ class DifficultyManager:
                         PredictPacmanRule(prediction_steps=3, priority=3.5),
                         FlankPacmanRule(priority=3.0),
                         BlockEscapeRoute(priority=2.5),
+                        SeekPacmanRule(priority=2.0),
                         IntelligentWanderRule(priority=1.0)
                     ],
                     # Привид 2: Тактичний фланкер
@@ -138,6 +142,7 @@ class DifficultyManager:
                         FlankPacmanRule(priority=3.5),
                         BlockEscapeRoute(priority=3.2),
                         PredictPacmanRule(prediction_steps=2, priority=2.8),
+                        SeekPacmanRule(priority=2.0),
                         IntelligentWanderRule(priority=1.0)
                     ],
                     # Привид 3: Стратегічний блокувальник
@@ -146,6 +151,7 @@ class DifficultyManager:
                         BlockEscapeRoute(priority=3.8),
                         PredictPacmanRule(prediction_steps=4, priority=3.0),
                         FlankPacmanRule(priority=2.5),
+                        SeekPacmanRule(priority=2.0),
                         IntelligentWanderRule(priority=1.0)
                     ],
                     # Привид 4: Універсальний підтримувач
@@ -155,6 +161,7 @@ class DifficultyManager:
                         FlankPacmanRule(priority=2.8),
                         BlockEscapeRoute(priority=2.5),
                         SmartPatrolRule(patrol_points=[(12, 6), (12, 12), (6, 9), (18, 9)], priority=2.0),
+                        SeekPacmanRule(priority=2.0),
                         IntelligentWanderRule(priority=1.0)
                     ]
                 ]

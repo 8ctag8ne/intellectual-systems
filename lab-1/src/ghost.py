@@ -136,9 +136,25 @@ class Ghost:
                         # Якщо зовсім немає варіантів, зупиняємося
                         self.direction = (0, 0)
 
+            is_tunnel_move = (
+                    abs(self.target_x - self.grid_x) > 1 or
+                    abs(self.target_y - self.grid_y) > 1
+            )
+
+            if is_tunnel_move:
+                # Миттєвий перехід для тунелів
+                self.grid_x = self.target_x
+                self.grid_y = self.target_y
+                self.x = self.grid_x * CELL_SIZE + CELL_SIZE // 2
+                self.y = self.grid_y * CELL_SIZE + CELL_SIZE // 2
+                self.move_progress = 0.0
+            else:
+                self.move_progress = 0.0
+
         # Якщо рухаємося до цільової клітинки
         if self.grid_x != self.target_x or self.grid_y != self.target_y:
             self.move_progress += dt * self.move_speed
+
 
             if self.move_progress >= 1.0:
                 # Досягли цільової клітинки
