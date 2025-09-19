@@ -6,6 +6,108 @@ from collections import deque
 from src.constants import *
 
 
+def has_line_of_sight(ghost_pos, pacman_pos, walls, max_distance=float('inf')):
+    """Перевіряє чи є пряма видимість між привидом і пакменом"""
+    x0, y0 = ghost_pos
+    x1, y1 = pacman_pos
+
+    # Перевіряємо відстань
+    distance = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+    if distance > max_distance:
+        return False
+
+    # Алгоритм Брезенхема для перевірки лінії зору
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+
+    x, y = x0, y0
+    while True:
+        # Якщо це не початкова позиція і не цільова, перевіряємо на стіни
+        if (x, y) != ghost_pos and (x, y) != pacman_pos and (x, y) in walls:
+            return False
+
+        if x == x1 and y == y1:
+            break
+
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x += sx
+        if e2 < dx:
+            err += dx
+            y += sy
+
+    return True
+
+
+class GhostMemory:
+    """Клас для зберігання пам'яті привида"""
+
+    def __init__(self):
+        self.last_seen_pos = None
+        self.last_seen_time = 0
+        self.last_direction = (0, 0)
+        self.remember_time = 5.0  # Час пам'яті в секундах
+
+
+def can_see_pacman(ghost, pacman, walls, view_distance=7, sense_distance=3):
+    """Перевіряє, чи може привид бачити або відчувати пакмена"""
+    ghost_pos = (ghost.grid_x, ghost.grid_y)
+    pacman_pos = (pacman.grid_x, pacman.grid_y)
+
+    # Перевіряємо пряму видимість
+    has_los = has_line_of_sight(ghost_pos, pacman_pos, walls, view_distance)
+
+    # Перевіряємо відчуття (менший радіус, через стіни)
+    distance = math.sqrt((ghost_pos[0] - pacman_pos[0]) ** 2 +
+                         (ghost_pos[1] - pacman_pos[1]) ** 2)
+    can_sense = distance <= sense_distance
+
+    return has_los or can_sense
+
+def bfs_next_step(start_pos, target_pos, walls, map_width, map_height, avoid_positions=None):
+    """
+    BFS пошук наступного кроку до цілі
+    Повертає напрямок для наступного кроку або None якщо шлях не знайдено
+    """
+    if start_pos == target_pos:
+        return None
+
+    avoid_positions = avoid_positions or set()
+    queue = deque([(start_pos, [])])  # (позиція, шлях_до_неї)
+    visited = {start_pos}
+
+    while queue:
+        (x, y), path = queue.popleft()
+
+        # Перевіряємо всі можливі напрямки
+        for direction in DIRECTIONS:
+            next_x = (x + direction[0]) % map_width
+            next_y = (y + direction[1]) % map_height
+            next_pos = (next_x, next_y)
+
+            if next_pos in visited or next_pos in walls or next_pos in avoid_positions:
+                continue
+
+            new_path = path + [direction]
+
+            if next_pos == target_pos:
+                # Знайшли шлях - повертаємо перший крок
+                return new_path[0] if new_path else None
+
+            queue.append((next_pos, new_path))
+            visited.add(next_pos)
+
+            # Обмежуємо глибину пошуку для продуктивності
+            if len(new_path) > 15:
+                break
+
+    return None
+
+
 class GhostRule:
     """Базовий клас для правила поведінки привида"""
 
@@ -23,65 +125,112 @@ class GhostRule:
 
 
 class SeekPacmanRule(GhostRule):
-    """Правило: йти до пакмена якщо його видно"""
+    """Пошук пакмена з обмеженою видимістю"""
 
-    def __init__(self, view_distance=5, priority=3.0):
+    def __init__(self, view_distance=7, sense_distance=3, priority=3.0):
         super().__init__(priority)
         self.view_distance = view_distance
+        self.sense_distance = sense_distance
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
-        if not ghost_ai.can_see_pacman(pacman, walls, self.view_distance):
-            return None, 0.0
+        ghost = ghost_ai.ghost
+        ghost_pos = (ghost.grid_x, ghost.grid_y)
+        pacman_pos = (pacman.grid_x, pacman.grid_y)
 
-        # Обчислюємо напрямок до пакмена
-        dx = pacman.grid_x - ghost_ai.ghost.grid_x
-        dy = pacman.grid_y - ghost_ai.ghost.grid_y
+        # Перевіряємо чи бачимо або відчуваємо пакмена
+        can_see = can_see_pacman(ghost, pacman, walls, self.view_distance, self.sense_distance)
 
-        # Визначаємо основний напрямок
-        if abs(dx) > abs(dy):
-            direction = (1 if dx > 0 else -1, 0)
-        else:
-            direction = (0, 1 if dy > 0 else -1)
+        # Оновлюємо пам'ять
+        if can_see:
+            ghost.memory.last_seen_pos = pacman_pos
+            ghost.memory.last_seen_time = ghost_ai.game.total_time
+            ghost.memory.last_direction = pacman.direction
 
-        # Перевіряємо чи можна рухатися в цьому напрямку
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
-        if direction in valid_dirs:
-            distance = math.sqrt(dx * dx + dy * dy)
-            strength = min(1.0, self.view_distance / (distance + 0.1))
-            return direction, strength * self.priority
+        # Рухаємося до пакмена, якщо бачимо або відчуваємо
+        if can_see:
+            avoid_positions = set()
+            for other_ghost in other_ghosts:
+                if other_ghost != ghost:
+                    avoid_positions.add((other_ghost.grid_x, other_ghost.grid_y))
+                    avoid_positions.add((other_ghost.target_x, other_ghost.target_y))
+
+            direction = bfs_next_step(ghost_pos, pacman_pos, walls,
+                                      ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                      avoid_positions)
+
+            if direction:
+                strength = 1.0
+                return direction, strength * self.priority
+
+        # Рухаємося до останньої відомої позиції, якщо пам'ять ще актуальна
+        if (ghost.memory.last_seen_pos and
+                ghost_ai.game.total_time - ghost.memory.last_seen_time < ghost.memory.remember_time):
+
+            avoid_positions = set()
+            for other_ghost in other_ghosts:
+                if other_ghost != ghost:
+                    avoid_positions.add((other_ghost.grid_x, other_ghost.grid_y))
+                    avoid_positions.add((other_ghost.target_x, other_ghost.target_y))
+
+            direction = bfs_next_step(ghost_pos, ghost.memory.last_seen_pos, walls,
+                                      ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                      avoid_positions)
+
+            if direction:
+                # Сила зменшується з часом
+                time_since_seen = ghost_ai.game.total_time - ghost.memory.last_seen_time
+                strength = max(0.1, 1.0 - time_since_seen / ghost.memory.remember_time)
+                return direction, strength * self.priority * 0.7
 
         return None, 0.0
 
 
 class PredictPacmanRule(GhostRule):
-    """Правило: передбачати рух пакмена і йти на перехоплення"""
+    """Передбачення руху пакмена тільки при видимості"""
 
-    def __init__(self, prediction_steps=3, priority=2.5):
+    def __init__(self, prediction_steps=3, view_distance=7, sense_distance=3, priority=2.5):
         super().__init__(priority)
         self.prediction_steps = prediction_steps
+        self.view_distance = view_distance
+        self.sense_distance = sense_distance
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
-        # Передбачаємо куди рухатиметься пакмен
-        pacman_dir = pacman.direction
-        if pacman_dir == (0, 0):
+        ghost = ghost_ai.ghost
+
+        # Перевіряємо чи бачимо пакмена
+        if not can_see_pacman(ghost, pacman, walls, self.view_distance, self.sense_distance):
             return None, 0.0
 
-        # Обчислюємо передбачувану позицію пакмена
-        predicted_x = pacman.grid_x + pacman_dir[0] * self.prediction_steps
-        predicted_y = pacman.grid_y + pacman_dir[1] * self.prediction_steps
+        # Оновлюємо пам'ять про напрямок
+        ghost.memory.last_direction = pacman.direction
 
-        # Обчислюємо напрямок до передбачуваної позиції
-        dx = predicted_x - ghost_ai.ghost.grid_x
-        dy = predicted_y - ghost_ai.ghost.grid_y
+        # Передбачаємо позицію пакмена
+        pred_x = pacman.grid_x + pacman.direction[0] * self.prediction_steps
+        pred_y = pacman.grid_y + pacman.direction[1] * self.prediction_steps
 
-        if abs(dx) > abs(dy):
-            direction = (1 if dx > 0 else -1, 0)
-        else:
-            direction = (0, 1 if dy > 0 else -1)
+        # Нормалізуємо координати для тунелів
+        pred_x = pred_x % ghost_ai.game.map_width
+        pred_y = pred_y % ghost_ai.game.map_height
 
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
-        if direction in valid_dirs:
-            distance = math.sqrt(dx * dx + dy * dy)
+        if (pred_x, pred_y) in walls:
+            return None, 0.0
+
+        ghost_pos = (ghost.grid_x, ghost.grid_y)
+        pred_pos = (pred_x, pred_y)
+
+        avoid_positions = set()
+        for other_ghost in other_ghosts:
+            if other_ghost != ghost:
+                avoid_positions.add((other_ghost.grid_x, other_ghost.grid_y))
+                avoid_positions.add((other_ghost.target_x, other_ghost.target_y))
+
+        direction = bfs_next_step(ghost_pos, pred_pos, walls,
+                                  ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                  avoid_positions)
+
+        if direction:
+            distance = math.sqrt((ghost_pos[0] - pred_pos[0]) ** 2 +
+                                 (ghost_pos[1] - pred_pos[1]) ** 2)
             strength = min(1.0, 10.0 / (distance + 1))
             return direction, strength * self.priority
 
@@ -89,237 +238,188 @@ class PredictPacmanRule(GhostRule):
 
 
 class FlankPacmanRule(GhostRule):
-    def __init__(self, priority=2.0):
+    """Фланговий маневр тільки при видимості"""
+
+    def __init__(self, view_distance=7, sense_distance=3, priority=2.0):
         super().__init__(priority)
+        self.view_distance = view_distance
+        self.sense_distance = sense_distance
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
-        # Визначаємо напрямок руху пакмена
-        pacman_dir = pacman.direction
-        if pacman_dir == (0, 0):
-            # Якщо пакмен не рухається, виходимо
+        ghost = ghost_ai.ghost
+
+        # Перевіряємо чи бачимо пакмена
+        if not can_see_pacman(ghost, pacman, walls, self.view_distance, self.sense_distance):
             return None, 0.0
 
-        # Визначаємо позицію, в якій пакмен буде через кілька кроків
-        predicted_x = pacman.grid_x + pacman_dir[0] * 3
-        predicted_y = pacman.grid_y + pacman_dir[1] * 3
+        if pacman.direction == (0, 0):
+            return None, 0.0
 
-        # Визначаємо флангову позицію (збоку від передбачуваного напрямку руху)
-        # Спершу визначаємо перпендикулярні напрямки до напрямку руху пакмена
+        # Передбачаємо позицію пакмена
+        pred_x = pacman.grid_x + pacman.direction[0] * 3
+        pred_y = pacman.grid_y + pacman.direction[1] * 3
+
+        # Знаходимо флангові позиції
         flank_positions = []
-        if pacman_dir[0] != 0:  # Рух по горизонталі
-            flank_positions.append((predicted_x, predicted_y + 1))
-            flank_positions.append((predicted_x, predicted_y - 1))
-        else:  # Рух по вертикалі
-            flank_positions.append((predicted_x + 1, predicted_y))
-            flank_positions.append((predicted_x - 1, predicted_y))
+        if pacman.direction[0] != 0:  # горизонтальний рух
+            flank_positions = [(pred_x, pred_y + 2), (pred_x, pred_y - 2)]
+        else:  # вертикальний рух
+            flank_positions = [(pred_x + 2, pred_y), (pred_x - 2, pred_y)]
 
-        # Вибираємо найближчу флангову позицію
-        best_flank = None
-        min_dist = float('inf')
-        for pos in flank_positions:
-            dist = math.sqrt((ghost_ai.ghost.grid_x - pos[0])**2 +
-                             (ghost_ai.ghost.grid_y - pos[1])**2)
-            if dist < min_dist:
-                min_dist = dist
-                best_flank = pos
+        # Знаходимо найкращу доступну фланкову позицію
+        ghost_pos = (ghost.grid_x, ghost.grid_y)
+        avoid_positions = {(g.grid_x, g.grid_y) for g in other_ghosts if g != ghost}
 
-        if best_flank is None:
-            return None, 0.0
+        for target_pos in flank_positions:
+            # Нормалізуємо координати для тунелів
+            norm_pos = (target_pos[0] % ghost_ai.game.map_width,
+                        target_pos[1] % ghost_ai.game.map_height)
 
-        # Рухаємося до флангової позиції
-        dx = best_flank[0] - ghost_ai.ghost.grid_x
-        dy = best_flank[1] - ghost_ai.ghost.grid_y
-
-        if abs(dx) > abs(dy):
-            direction = (1 if dx > 0 else -1, 0)
-        else:
-            direction = (0, 1 if dy > 0 else -1)
-
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
-        if direction in valid_dirs:
-            distance = math.sqrt(dx*dx + dy*dy)
-            strength = min(1.0, 5.0 / (distance + 0.1))
-            return direction, strength * self.priority
+            if norm_pos not in walls:
+                direction = bfs_next_step(ghost_pos, norm_pos, walls,
+                                          ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                          avoid_positions)
+                if direction:
+                    distance = math.sqrt((ghost_pos[0] - norm_pos[0]) ** 2 +
+                                         (ghost_pos[1] - norm_pos[1]) ** 2)
+                    strength = min(1.0, 5.0 / (distance + 0.1))
+                    return direction, strength * self.priority
 
         return None, 0.0
 
 
 class AvoidOtherGhostsRule(GhostRule):
+    """Уникнення інших привидів"""
+
     def __init__(self, min_distance=2, priority=1.5):
         super().__init__(priority)
         self.min_distance = min_distance
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
-        # Знаходимо всіх привидів у межах min_distance
-        nearby_ghosts = []
+        ghost_pos = (ghost_ai.ghost.grid_x, ghost_ai.ghost.grid_y)
+
+        # Знаходимо близьких привидів
+        close_ghosts = []
         for ghost in other_ghosts:
             if ghost != ghost_ai.ghost:
-                dist = math.sqrt((ghost.grid_x - ghost_ai.ghost.grid_x) ** 2 +
-                                 (ghost.grid_y - ghost_ai.ghost.grid_y) ** 2)
-                if dist < self.min_distance:
-                    nearby_ghosts.append(ghost)
+                distance = math.sqrt((ghost.grid_x - ghost_pos[0]) ** 2 +
+                                     (ghost.grid_y - ghost_pos[1]) ** 2)
+                if distance < self.min_distance:
+                    close_ghosts.append(ghost)
 
-        if not nearby_ghosts:
+        if not close_ghosts:
             return None, 0.0
 
-        # Обчислюємо середній вектор відштовхування
-        repulse_x, repulse_y = 0, 0
-        for ghost in nearby_ghosts:
-            dx = ghost_ai.ghost.grid_x - ghost.grid_x
-            dy = ghost_ai.ghost.grid_y - ghost.grid_y
-            distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-            repulse_x += dx / distance
-            repulse_y += dy / distance
+        # Знаходимо найкращий напрямок для втечі
+        valid_dirs = []
+        for direction in DIRECTIONS:
+            next_x = (ghost_pos[0] + direction[0]) % ghost_ai.game.map_width
+            next_y = (ghost_pos[1] + direction[1]) % ghost_ai.game.map_height
 
-        # Нормалізуємо вектор
-        magnitude = math.sqrt(repulse_x*repulse_x + repulse_y*repulse_y)
-        if magnitude > 0:
-            repulse_x /= magnitude
-            repulse_y /= magnitude
+            if (next_x, next_y) not in walls:
+                # Перевіряємо чи віддаляє цей напрямок від близьких привидів
+                total_distance = 0
+                for close_ghost in close_ghosts:
+                    dist = math.sqrt((close_ghost.grid_x - next_x) ** 2 +
+                                     (close_ghost.grid_y - next_y) ** 2)
+                    total_distance += dist
 
-        # Знаходимо напрямок, який найкраще відповідає вектору відштовхування
-        best_direction = None
-        best_score = -float('inf')
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
+                valid_dirs.append((direction, total_distance))
 
-        for direction in valid_dirs:
-            score = direction[0] * repulse_x + direction[1] * repulse_y
-            if score > best_score:
-                best_score = score
-                best_direction = direction
-
-        if best_direction:
-            # Сила залежить від відстані до найближчого привида
-            min_dist = min(math.sqrt((g.grid_x - ghost_ai.ghost.grid_x)**2 +
-                                    (g.grid_y - ghost_ai.ghost.grid_y)**2) for g in nearby_ghosts)
-            strength = (self.min_distance - min_dist) / self.min_distance
+        if valid_dirs:
+            # Обираємо напрямок, що максимізує відстань
+            best_direction = max(valid_dirs, key=lambda x: x[1])[0]
+            strength = (self.min_distance - min(math.sqrt((g.grid_x - ghost_pos[0]) ** 2 +
+                                                          (g.grid_y - ghost_pos[1]) ** 2)
+                                                for g in close_ghosts)) / self.min_distance
             return best_direction, strength * self.priority
 
         return None, 0.0
 
+
 class PatrolRule(GhostRule):
+    """Патрулювання з BFS"""
+
     def __init__(self, patrol_points=None, priority=1.0):
         super().__init__(priority)
         self.patrol_points = patrol_points or []
-        self.current_target_index = 0
-        self.last_pacman_position = None
+        self.current_target = 0
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
         if not self.patrol_points:
             return None, 0.0
 
-        # Якщо пакмен поруч, зменшуємо пріоритет патрулювання
-        dist_to_pacman = math.sqrt((ghost_ai.ghost.grid_x - pacman.grid_x)**2 +
-                                   (ghost_ai.ghost.grid_y - pacman.grid_y)**2)
-        if dist_to_pacman < 5:
-            return None, 0.0
+        ghost_pos = (ghost_ai.ghost.grid_x, ghost_ai.ghost.grid_y)
+        target_pos = self.patrol_points[self.current_target]
 
-        # Якщо пакмен рухається, можемо адаптувати точки патрулювання
-        if pacman.direction != (0, 0) and self.last_pacman_position:
-            # Визначаємо напрямок руху пакмена
-            dx = pacman.grid_x - self.last_pacman_position[0]
-            dy = pacman.grid_y - self.last_pacman_position[1]
-            if dx != 0 or dy != 0:
-                # Зміщуємо точки патрулювання в напрямку руху пакмена
-                adapted_points = []
-                for point in self.patrol_points:
-                    new_point = (point[0] + dx * 2, point[1] + dy * 2)
-                    # Перевіряємо, чи нова точка в межах карти
-                    new_point = (new_point[0] % ghost_ai.game.map_width,
-                                 new_point[1] % ghost_ai.game.map_height)
-                    if new_point not in walls:
-                        adapted_points.append(new_point)
-                    else:
-                        adapted_points.append(point)
-                self.patrol_points = adapted_points
+        # Якщо досягли цілі, переходимо до наступної
+        if ghost_pos == target_pos:
+            self.current_target = (self.current_target + 1) % len(self.patrol_points)
+            target_pos = self.patrol_points[self.current_target]
 
-        self.last_pacman_position = (pacman.grid_x, pacman.grid_y)
+        avoid_positions = {(g.grid_x, g.grid_y) for g in other_ghosts if g != ghost_ai.ghost}
 
-        target_x, target_y = self.patrol_points[self.current_target_index]
+        direction = bfs_next_step(ghost_pos, target_pos, walls,
+                                  ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                  avoid_positions)
 
-        # Якщо дійшли до цілі, переходимо до наступної
-        if (ghost_ai.ghost.grid_x, ghost_ai.ghost.grid_y) == (target_x, target_y):
-            self.current_target_index = (self.current_target_index + 1) % len(self.patrol_points)
-            target_x, target_y = self.patrol_points[self.current_target_index]
-
-        # Рухаємося до цілі
-        dx = target_x - ghost_ai.ghost.grid_x
-        dy = target_y - ghost_ai.ghost.grid_y
-
-        if abs(dx) > abs(dy):
-            direction = (1 if dx > 0 else -1, 0)
-        else:
-            direction = (0, 1 if dy > 0 else -1)
-
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
-        if direction in valid_dirs:
-            return direction, self.priority
-
-        return None, 0.0
+        return (direction, self.priority) if direction else (None, 0.0)
 
 
 class BlockEscapeRoute(GhostRule):
-    def __init__(self, priority=2.2):
+    """Блокування виходів тільки при видимості"""
+
+    def __init__(self, view_distance=7, sense_distance=3, priority=2.2):
         super().__init__(priority)
+        self.view_distance = view_distance
+        self.sense_distance = sense_distance
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
-        # Знаходимо можливі шляхи втечі пакмена
-        pacman_valid_dirs = []
+        ghost = ghost_ai.ghost
+
+        # Перевіряємо чи бачимо пакмена
+        if not can_see_pacman(ghost, pacman, walls, self.view_distance, self.sense_distance):
+            return None, 0.0
+
+        # Знаходимо можливі виходи пакмена
+        pacman_pos = (pacman.grid_x, pacman.grid_y)
+        exit_positions = []
+
         for direction in DIRECTIONS:
-            next_x = pacman.grid_x + direction[0]
-            next_y = pacman.grid_y + direction[1]
+            exit_x = (pacman.grid_x + direction[0]) % ghost_ai.game.map_width
+            exit_y = (pacman.grid_y + direction[1]) % ghost_ai.game.map_height
+            if (exit_x, exit_y) not in walls:
+                exit_positions.append((exit_x, exit_y))
 
-            next_x = (next_x + ghost_ai.game.map_width) % ghost_ai.game.map_width
-            next_y = (next_y + ghost_ai.game.map_height) % ghost_ai.game.map_height
+        if len(exit_positions) <= 1:
+            return None, 0.0
 
-            if (next_x, next_y) not in walls:
-                pacman_valid_dirs.append((next_x, next_y))
-
-        if len(pacman_valid_dirs) <= 1:
-            return None, 0.0  # Пакмен вже заблокований або в тупику
-
-        # Сортуємо виходи за пріоритетом: спочатку ті, що в напрямку руху пакмена
-        if pacman.direction != (0, 0):
-            # Якщо пакмен рухається, найімовірніший вихід - попереду
-            preferred_exit = (pacman.grid_x + pacman.direction[0],
-                              pacman.grid_y + pacman.direction[1])
-            if preferred_exit in pacman_valid_dirs:
-                pacman_valid_dirs.remove(preferred_exit)
-                pacman_valid_dirs.insert(0, preferred_exit)
-
-        # Визначаємо, які виходи вже блокуються іншими привидами
+        # Знаходимо вихід, який не блокується іншими привидами
         blocked_exits = set()
-        for ghost in other_ghosts:
-            if ghost != ghost_ai.ghost:
-                # Перевіряємо, чи рухається привид до якогось виходу
-                for exit_pos in pacman_valid_dirs:
-                    if (ghost.target_x, ghost.target_y) == exit_pos:
-                        blocked_exits.add(exit_pos)
-                    # Також перевіряємо, чи вже знаходиться на виході
-                    if (ghost.grid_x, ghost.grid_y) == exit_pos:
-                        blocked_exits.add(exit_pos)
+        for other_ghost in other_ghosts:
+            if other_ghost != ghost:
+                blocked_exits.add((other_ghost.target_x, other_ghost.target_y))
 
-        # Знаходимо найважливіший незаблокований вихід
-        for exit_pos in pacman_valid_dirs:
+        target_exit = None
+        for exit_pos in exit_positions:
             if exit_pos not in blocked_exits:
                 target_exit = exit_pos
                 break
-        else:
-            # Всі виходи заблоковані
+
+        if not target_exit:
             return None, 0.0
 
         # Рухаємося до виходу
-        dx = target_exit[0] - ghost_ai.ghost.grid_x
-        dy = target_exit[1] - ghost_ai.ghost.grid_y
+        ghost_pos = (ghost.grid_x, ghost.grid_y)
+        avoid_positions = {(g.grid_x, g.grid_y) for g in other_ghosts if g != ghost}
 
-        if abs(dx) > abs(dy):
-            direction = (1 if dx > 0 else -1, 0)
-        else:
-            direction = (0, 1 if dy > 0 else -1)
+        direction = bfs_next_step(ghost_pos, target_exit, walls,
+                                  ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                  avoid_positions)
 
-        valid_dirs = ghost_ai.get_valid_directions_no_collision(walls, other_ghosts)
-        if direction in valid_dirs:
-            distance = math.sqrt(dx*dx + dy*dy)
+        if direction:
+            distance = math.sqrt((ghost_pos[0] - target_exit[0]) ** 2 +
+                                 (ghost_pos[1] - target_exit[1]) ** 2)
             strength = min(1.0, 5.0 / (distance + 0.1))
             return direction, strength * self.priority
 
@@ -375,124 +475,48 @@ class WanderRule(GhostRule):
 
 
 class RuleBasedGhostAI:
-    """ШІ привида на основі правил"""
+    """Спрощений ШІ з BFS"""
 
     def __init__(self, ghost, game, rules=None):
         self.ghost = ghost
         self.game = game
         self.rules = rules or []
-        self.current_direction = random.choice(DIRECTIONS)
-        self.stuck_counter = 0
-        self.recent_positions = deque(maxlen=10)  # Для відстеження циклів
 
-    def add_rule(self, rule):
-        """Додає правило до списку"""
-        self.rules.append(rule)
+        # Ініціалізуємо пам'ять для привида
+        if not hasattr(ghost, 'memory'):
+            ghost.memory = GhostMemory()
 
     def get_next_direction(self, walls, pacman, other_ghosts):
-        # Збираємо всі активовані правила
-        direction_scores = {}
+        # Простіше голосування правил
+        direction_votes = {}
 
         for rule in self.rules:
             if rule.enabled:
                 direction, strength = rule.evaluate(self, walls, pacman, other_ghosts)
-                if direction is not None and strength > 0:
-                    if direction not in direction_scores:
-                        direction_scores[direction] = 0
-                    direction_scores[direction] += strength
+                if direction and strength > 0:
+                    if direction not in direction_votes:
+                        direction_votes[direction] = 0
+                    direction_votes[direction] += strength
 
-        if not direction_scores:
-            valid_dirs = self.get_valid_directions_no_collision(walls, other_ghosts)
-            if valid_dirs:
-                return random.choice(valid_dirs)
-            return (0, 0)
+        if direction_votes:
+            return max(direction_votes.items(), key=lambda x: x[1])[0]
 
-        # Знаходимо напрямок з найвищою сумарною вагою
-        best_direction = max(direction_scores.items(), key=lambda x: x[1])[0]
-
-        # Додаткова перевірка: чи не веде цей напрямок до циклічної поведінки
-        current_pos = (self.ghost.grid_x, self.ghost.grid_y)
-        self.recent_positions.append(current_pos)
-        next_pos = (current_pos[0] + best_direction[0],
-                    current_pos[1] + best_direction[1])
-
-        # Якщо ми нещодавно були в цій позиції, зменшуємо його пріоритет
-        if hasattr(self, 'recent_positions') and next_pos in self.recent_positions:
-            # Спробуємо знайти альтернативний напрямок
-            alternative_dirs = [d for d in direction_scores.keys() if d != best_direction]
-            if alternative_dirs:
-                # Обираємо найкращий альтернативний напрямок
-                best_direction = max(alternative_dirs,
-                                     key=lambda d: direction_scores[d])
-
-        return best_direction
-
-    def can_see_pacman(self, pacman, walls, view_distance=float('inf')):
-        """Перевіряє чи може привид бачити пакмена"""
-        dx = abs(self.ghost.grid_x - pacman.grid_x)
-        dy = abs(self.ghost.grid_y - pacman.grid_y)
-        distance = math.sqrt(dx * dx + dy * dy)
-
-        if distance > view_distance:
-            return False
-
-        return self.has_line_of_sight(pacman, walls)
-
-    def has_line_of_sight(self, pacman, walls):
-        """Перевіряє чи є прямий шлях до пакмена"""
-        x1, y1 = self.ghost.grid_x, self.ghost.grid_y
-        x2, y2 = pacman.grid_x, pacman.grid_y
-
-        dx = abs(x2 - x1)
-        dy = abs(y2 - y1)
-
-        if dx == 0 and dy == 0:
-            return True
-
-        sx = 1 if x1 < x2 else -1
-        sy = 1 if y1 < y2 else -1
-        err = dx - dy
-
-        x, y = x1, y1
-
-        while True:
-            if (x, y) in walls:
-                return False
-
-            if x == x2 and y == y2:
-                break
-
-            e2 = 2 * err
-            if e2 > -dy:
-                err -= dy
-                x += sx
-            if e2 < dx:
-                err += dx
-                y += sy
-
-        return True
+        # Fallback до випадкового руху
+        valid_dirs = self.get_valid_directions_no_collision(walls, other_ghosts)
+        return random.choice(valid_dirs) if valid_dirs else (0, 0)
 
     def get_valid_directions_no_collision(self, walls, other_ghosts):
         """Повертає валідні напрямки без зіткнень"""
         valid_directions = []
         for direction in DIRECTIONS:
-            next_x = self.ghost.grid_x + direction[0]
-            next_y = self.ghost.grid_y + direction[1]
+            next_x = (self.ghost.grid_x + direction[0]) % self.game.map_width
+            next_y = (self.ghost.grid_y + direction[1]) % self.game.map_height
 
-            next_x = (next_x + self.game.map_width) % self.game.map_width
-            next_y = (next_y + self.game.map_height) % self.game.map_height
-
-            if (next_x, next_y) not in walls:
-                collision = False
-                for other_ghost in other_ghosts:
-                    if other_ghost != self.ghost:
-                        if ((other_ghost.grid_x == next_x and other_ghost.grid_y == next_y) or
-                                (other_ghost.target_x == next_x and other_ghost.target_y == next_y)):
-                            collision = True
-                            break
-
-                if not collision:
-                    valid_directions.append(direction)
+            if ((next_x, next_y) not in walls and
+                    not any((g.grid_x, g.grid_y) == (next_x, next_y) or
+                            (g.target_x, g.target_y) == (next_x, next_y)
+                            for g in other_ghosts if g != self.ghost)):
+                valid_directions.append(direction)
 
         return valid_directions
 

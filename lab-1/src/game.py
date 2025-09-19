@@ -15,6 +15,7 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.big_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 24)
+        self.total_time = 0.0
 
         self.map_width = 0
         self.map_height = 0
@@ -137,6 +138,8 @@ class Game:
 
         # Зберігаємо dt для використання в ШІ
         self.dt = dt
+
+        self.total_time += dt
 
         self.pacman.update(dt, self.walls)
 
