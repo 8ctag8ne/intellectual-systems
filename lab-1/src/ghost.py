@@ -3,7 +3,6 @@ import pygame
 import random
 import math
 from src.constants import *
-from src.ghost_ai import GhostMemory
 
 
 class Ghost:
@@ -25,7 +24,6 @@ class Ghost:
         self.decision_timer = 0
         self.decision_delay = AI_DECISION_DELAY  # Трохи швидший відгук для кращої координації
         self.last_direction = (0, 0)
-        self.memory = GhostMemory()
 
     def set_ai(self, ai):
         """Встановлює ШІ для цього привида"""
