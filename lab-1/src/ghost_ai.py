@@ -63,75 +63,37 @@ class GhostRule:
 
 
 class SeekPacmanRule(GhostRule):
-    """Пошук пакмена з двома типами видимості"""
+    """Пошук пакмена з BFS"""
 
-    def __init__(self, view_distance=5, sense_distance=3, priority=3.0):
+    def __init__(self, view_distance=5, priority=3.0):
         super().__init__(priority)
         self.view_distance = view_distance
-        self.sense_distance = sense_distance
-
-    def has_line_of_sight(self, ghost_pos, pacman_pos, walls):
-        """Перевіряє пряму видимість без стін між привидом і пакменом"""
-        x0, y0 = ghost_pos
-        x1, y1 = pacman_pos
-
-        if ghost_pos == pacman_pos:
-            return True
-
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-        sx = 1 if x0 < x1 else -1
-        sy = 1 if y0 < y1 else -1
-        err = dx - dy
-
-        x, y = x0, y0
-        while True:
-            if (x, y) != ghost_pos and (x, y) != pacman_pos and (x, y) in walls:
-                return False
-
-            if x == x1 and y == y1:
-                break
-
-            e2 = 2 * err
-            if e2 > -dy:
-                err -= dy
-                x += sx
-            if e2 < dx:
-                err += dx
-                y += sy
-
-        return True
 
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
+        # Перевіряємо чи бачимо пакмена
+        distance = math.sqrt((ghost_ai.ghost.grid_x - pacman.grid_x) ** 2 +
+                             (ghost_ai.ghost.grid_y - pacman.grid_y) ** 2)
+        if distance > self.view_distance:
+            return None, 0.0
+
+        # Використовуємо BFS для знаходження шляху
         ghost_pos = (ghost_ai.ghost.grid_x, ghost_ai.ghost.grid_y)
         pacman_pos = (pacman.grid_x, pacman.grid_y)
-        distance = math.sqrt((ghost_pos[0] - pacman_pos[0]) ** 2 +
-                             (ghost_pos[1] - pacman_pos[1]) ** 2)
 
-        # Перевіряємо пряму видимість
-        has_los = self.has_line_of_sight(ghost_pos, pacman_pos, walls)
+        # Уникаємо позицій інших привидів
+        avoid_positions = set()
+        for ghost in other_ghosts:
+            if ghost != ghost_ai.ghost:
+                avoid_positions.add((ghost.grid_x, ghost.grid_y))
+                avoid_positions.add((ghost.target_x, ghost.target_y))
 
-        # Активуємо правило тільки якщо:
-        # 1. Пакмен у межах view_distance І є пряма видимість
-        # 2. АБО пакмен дуже близько (sense_distance) навіть через стіни
-        if (distance <= self.view_distance and has_los) or distance <= self.sense_distance:
-            avoid_positions = set()
-            for ghost in other_ghosts:
-                if ghost != ghost_ai.ghost:
-                    avoid_positions.add((ghost.grid_x, ghost.grid_y))
-                    avoid_positions.add((ghost.target_x, ghost.target_y))
+        direction = bfs_next_step(ghost_pos, pacman_pos, walls,
+                                  ghost_ai.game.map_width, ghost_ai.game.map_height,
+                                  avoid_positions)
 
-            direction = bfs_next_step(ghost_pos, pacman_pos, walls,
-                                      ghost_ai.game.map_width, ghost_ai.game.map_height,
-                                      avoid_positions)
-
-            if direction:
-                # Різна сила впливу в залежності від типу видимості
-                if distance <= self.view_distance and has_los:
-                    strength = min(1.0, self.view_distance / (distance + 0.1))
-                else:
-                    strength = min(0.5, self.sense_distance / (distance + 0.1)) * 0.5
-                return direction, strength * self.priority
+        if direction:
+            strength = min(1.0, self.view_distance / (distance + 0.1))
+            return direction, strength * self.priority
 
         return None, 0.0
 
