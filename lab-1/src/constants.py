@@ -49,6 +49,7 @@ DIRECTIONS = [UP, DOWN, LEFT, RIGHT]
 
 # Вибрана карта
 MAP = "classic_adapted_2.txt"
+# MAP = "map1.txt"
 
 # ШІ константи
 AI_DECISION_DELAY = 0.05  # Затримка між рішеннями ШІ в секундах
