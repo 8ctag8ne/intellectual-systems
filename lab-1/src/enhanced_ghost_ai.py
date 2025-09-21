@@ -7,6 +7,9 @@ import time
 from src.constants import *
 from src.ghost_ai import GhostRule
 
+import logging
+logger = logging.getLogger('GhostAI')
+
 
 # Глобальна система комунікації привидів
 class GhostNetwork:
@@ -20,6 +23,10 @@ class GhostNetwork:
         self.shared_memory['timestamp'] = timestamp
         self.shared_memory['confidence'] = confidence
         self.shared_memory['reporter_pos'] = ghost_pos
+
+        # Логування мережевої взаємодії
+        logger.info(f"Network update - Ghost at {ghost_pos} shared Pacman at {pacman_pos} "
+                    f"with confidence {confidence:.2f}")
 
     def get_shared_pacman_info(self, ghost_pos, current_time):
         """Отримує інформацію про пакмена від інших привидів"""
@@ -85,7 +92,7 @@ class EnhancedVisionRule(GhostRule):
             shared_pos, shared_confidence = ghost_network.get_shared_pacman_info(ghost_pos, current_time)
             if shared_pos and shared_confidence > 0.2:
                 pacman_pos = shared_pos
-                detection_confidence = shared_confidence * 0.8  # Менша впевненість для чужої інформації
+                detection_confidence = shared_confidence * 0.85  # Менша впевненість для чужої інформації
                 detected = True
                 detection_method = "network"
 
@@ -105,6 +112,17 @@ class EnhancedVisionRule(GhostRule):
 
             # Ділимося інформацією з іншими привидами
             ghost_network.share_pacman_sighting(ghost_pos, pacman_pos, current_time, detection_confidence)
+
+        if detected:
+            color_name = ghost_ai.ghost.get_color_name()
+            logger.info(f"{color_name} ghost detected Pacman via {detection_method} "
+                        f"at {pacman_pos} with confidence {detection_confidence:.2f}")
+
+            if detection_method in ["sight", "sound"]:
+                ghost_network.share_pacman_sighting(
+                    ghost_pos, pacman_pos, current_time, detection_confidence
+                )
+                logger.info(f"{color_name} ghost shared Pacman location with network")
 
         return detected, pacman_pos, detection_confidence, detection_method
 
@@ -207,6 +225,11 @@ class SmartPatrolRule(GhostRule):
                                   ghost_ai.game.map_width, ghost_ai.game.map_height,
                                   avoid_positions)
 
+        if self.current_target == 0 and self.patrol_completion_count > 0:
+            color_name = ghost_ai.ghost.get_color_name()
+            logger.info(f"{color_name} ghost completed {self.patrol_completion_count} "
+                        f"patrol cycles - priority adjusted to {self.adaptive_priority:.1f}")
+
         return (direction, self.adaptive_priority) if direction else (None, 0.0)
 
 
@@ -222,6 +245,11 @@ class IntelligentWanderRule(GhostRule):
     def evaluate(self, ghost_ai, walls, pacman, other_ghosts):
         ghost_pos = (ghost_ai.ghost.grid_x, ghost_ai.ghost.grid_y)
         current_time = time.time()
+
+        if random.random() < 0.1:  # Логуємо 10% випадків блукання
+            color_name = ghost_ai.ghost.get_color_name()
+            logger.info(f"{color_name} ghost is wandering - "
+                        f"recent positions: {len(set(self.position_history))}/8 unique")
 
         # Додаємо поточну позицію до історії
         self.position_history.append(ghost_pos)
@@ -288,8 +316,6 @@ class IntelligentWanderRule(GhostRule):
 
         self.direction_history.append(chosen_direction)
         return chosen_direction, self.priority
-
-        return random.choice([d[0] for d in scored_dirs]), self.priority
 
 
 # BFS функція (без змін)

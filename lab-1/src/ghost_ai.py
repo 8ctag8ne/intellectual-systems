@@ -5,6 +5,16 @@ from collections import deque
 
 from src.constants import *
 
+import logging
+
+# Налаштування логування
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger('GhostAI')
+
 
 def bfs_next_step(start_pos, target_pos, walls, map_width, map_height, avoid_positions=None):
     """
@@ -214,6 +224,10 @@ class AvoidOtherGhostsRule(GhostRule):
 
                 valid_dirs.append((direction, total_distance))
 
+        if close_ghosts and valid_dirs:
+            color_name = ghost_ai.ghost.get_color_name()
+            logger.info(f"{color_name} ghost avoiding {len(close_ghosts)} nearby ghosts")
+
         if valid_dirs:
             # Обираємо напрямок, що максимізує відстань
             best_direction = max(valid_dirs, key=lambda x: x[1])[0]
@@ -362,24 +376,44 @@ class RuleBasedGhostAI:
         self.game = game
         self.rules = rules or []
 
+    def log_decision(self, direction, strengths):
+        """Логує рішення привида"""
+        color_name = self.ghost.get_color_name()
+        active_rules = []
+
+        for rule_name, strength in strengths.items():
+            if strength > 0.1:  # Логуємо тільки значимі правила
+                active_rules.append(f"{rule_name}({strength:.1f})")
+
+        if active_rules:
+            logger.info(f"{color_name} ghost at ({self.ghost.grid_x}, {self.ghost.grid_y}) "
+                        f"chose direction {direction} - Active rules: {', '.join(active_rules)}")
+
     def get_next_direction(self, walls, pacman, other_ghosts):
-        # Простіше голосування правил
         direction_votes = {}
+        rule_strengths = {}
 
         for rule in self.rules:
             if rule.enabled:
                 direction, strength = rule.evaluate(self, walls, pacman, other_ghosts)
                 if direction and strength > 0:
+                    rule_name = rule.__class__.__name__
+                    rule_strengths[rule_name] = strength
+
                     if direction not in direction_votes:
                         direction_votes[direction] = 0
                     direction_votes[direction] += strength
 
         if direction_votes:
-            return max(direction_votes.items(), key=lambda x: x[1])[0]
+            chosen_direction = max(direction_votes.items(), key=lambda x: x[1])[0]
+            self.log_decision(chosen_direction, rule_strengths)
+            return chosen_direction
 
         # Fallback до випадкового руху
         valid_dirs = self.get_valid_directions_no_collision(walls, other_ghosts)
-        return random.choice(valid_dirs) if valid_dirs else (0, 0)
+        chosen_direction = random.choice(valid_dirs) if valid_dirs else (0, 0)
+        self.log_decision(chosen_direction, {"WanderRule": 0.5})
+        return chosen_direction
 
     def get_valid_directions_no_collision(self, walls, other_ghosts):
         """Повертає валідні напрямки без зіткнень"""

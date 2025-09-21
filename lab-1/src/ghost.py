@@ -5,6 +5,7 @@ import math
 from src.constants import *
 
 
+
 class Ghost:
     def __init__(self, x, y, color, game):
         self.grid_x = x // CELL_SIZE
@@ -24,6 +25,16 @@ class Ghost:
         self.decision_timer = 0
         self.decision_delay = AI_DECISION_DELAY  # Трохи швидший відгук для кращої координації
         self.last_direction = (0, 0)
+
+    def get_color_name(self):
+        """Повертає назву кольору привида"""
+        color_names = {
+            (255, 0, 0): "Red",
+            (0, 0, 255): "Blue",
+            (255, 192, 203): "Pink",
+            (255, 165, 0): "Orange"
+        }
+        return color_names.get(self.color, "Unknown")
 
     def set_ai(self, ai):
         """Встановлює ШІ для цього привида"""

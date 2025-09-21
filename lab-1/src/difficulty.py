@@ -138,7 +138,7 @@ class DifficultyManager:
                     ],
                     # Привид 2: Тактичний фланкер
                     [
-                        EnhancedVisionRule(sight_radius=7, sound_radius=4, memory_duration=4.5, priority=3.8),
+                        EnhancedVisionRule(sight_radius=7, sound_radius=5, memory_duration=4.5, priority=3.8),
                         FlankPacmanRule(priority=3.5),
                         BlockEscapeRoute(priority=3.2),
                         PredictPacmanRule(prediction_steps=2, priority=2.8),
@@ -147,7 +147,7 @@ class DifficultyManager:
                     ],
                     # Привид 3: Стратегічний блокувальник
                     [
-                        EnhancedVisionRule(sight_radius=7, sound_radius=3, memory_duration=4.0, priority=3.5),
+                        EnhancedVisionRule(sight_radius=7, sound_radius=4, memory_duration=4.0, priority=3.5),
                         BlockEscapeRoute(priority=3.8),
                         PredictPacmanRule(prediction_steps=4, priority=3.0),
                         FlankPacmanRule(priority=2.5),
