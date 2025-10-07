@@ -103,7 +103,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757851419370</updated>
       <workItem from="1757851423383" duration="6942000" />
-      <workItem from="1759794040494" duration="7228000" />
+      <workItem from="1759794040494" duration="9738000" />
     </task>
     <servers />
   </component>
@@ -113,6 +113,6 @@
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/intellectual_systems$main.coverage" NAME="main Coverage Results" MODIFIED="1757853655206" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lab-1" />
     <SUITE FILE_PATH="coverage/intellectual_systems$game.coverage" NAME="game Coverage Results" MODIFIED="1757853599497" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lab-1/src" />
-    <SUITE FILE_PATH="coverage/intellectual_systems$KnowledgeBase.coverage" NAME="KnowledgeBase Coverage Results" MODIFIED="1759801305240" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lab-2" />
+    <SUITE FILE_PATH="coverage/intellectual_systems$KnowledgeBase.coverage" NAME="KnowledgeBase Coverage Results" MODIFIED="1759805827799" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/lab-2" />
   </component>
 </project>

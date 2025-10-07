@@ -4,6 +4,8 @@
 База знань про аніме та мангу
 Реалізує ієрархію класів з відношеннями is_a, part_of, has
 """
+import collections
+
 from Vertex import *
 
 class OptimizedKnowledgeBase:
@@ -37,23 +39,22 @@ class OptimizedKnowledgeBase:
         subject_vertex = self.vertices[subject]
         return subject_vertex.has_direct_connection(obj, relation)
 
-    def query_transitive(self, subject, obj, relation_filter=None, visited=None):
+    def query_transitive(self, subject, obj, relation_filter=None):
         """
         Перевірити транзитивний зв'язок між об'єктами
-        Використовує BFS для ефективного пошуку
+        Використовує BFS з відновленням шляху в кінці
         """
         if subject not in self.vertices or obj not in self.vertices:
             return False, []
 
-        if visited is None:
-            visited = set()
-
-        # BFS для знаходження шляху
-        queue = [(self.vertices[subject], [])]  # (current_vertex, path)
-        visited.add(subject)
+        # BFS з відстеженням попередників
+        queue = collections.deque([subject])
+        visited = {subject}
+        predecessor = {}  # vertex -> (previous_vertex, relation)
 
         while queue:
-            current_vertex, path = queue.pop(0)
+            current_name = queue.popleft()
+            current_vertex = self.vertices[current_name]
 
             # Перевіряємо всі ребра з поточної вершини
             for edge in current_vertex.edges:
@@ -61,16 +62,29 @@ class OptimizedKnowledgeBase:
                 if relation_filter and edge.relation != relation_filter:
                     continue
 
+                neighbor_name = edge.target.name
+
                 # Перевіряємо чи знайшли ціль
-                if edge.target.name == obj:
-                    full_path = path + [(current_vertex.name, edge.relation, edge.target.name)]
-                    return True, full_path
+                if neighbor_name == obj:
+                    # Відновлюємо шлях від цілі до початку
+                    path = []
+                    # Додаємо останній крок
+                    path.append((current_name, edge.relation, neighbor_name))
+                    # Відновлюємо решту шляху
+                    node = current_name
+                    while node in predecessor:
+                        prev_node, rel = predecessor[node]
+                        path.append((prev_node, rel, node))
+                        node = prev_node
+                    # Реверсуємо шлях (бо будували від кінця до початку)
+                    path.reverse()
+                    return True, path
 
                 # Додаємо сусідні вершини в чергу
-                if edge.target.name not in visited:
-                    visited.add(edge.target.name)
-                    new_path = path + [(current_vertex.name, edge.relation, edge.target.name)]
-                    queue.append((edge.target, new_path))
+                if neighbor_name not in visited:
+                    visited.add(neighbor_name)
+                    predecessor[neighbor_name] = (current_name, edge.relation)
+                    queue.append(neighbor_name)
 
         return False, []
 
@@ -220,71 +234,54 @@ def create_optimized_weapon_kb():
     kb.add_fact("Axe", "is_a", "MeleeWeapon")
     kb.add_fact("Spear", "is_a", "MeleeWeapon")
     kb.add_fact("Dagger", "is_a", "MeleeWeapon")
-    kb.add_fact("Mace", "is_a", "MeleeWeapon")
-    kb.add_fact("Staff", "is_a", "MeleeWeapon")
 
     # Дистанційна зброя
     kb.add_fact("Bow", "is_a", "RangedWeapon")
-    kb.add_fact("Crossbow", "is_a", "RangedWeapon")
     kb.add_fact("Firearm", "is_a", "RangedWeapon")
     kb.add_fact("Throwable", "is_a", "RangedWeapon")
 
     # Вибухівка
     kb.add_fact("Grenade", "is_a", "ExplosiveWeapon")
-    kb.add_fact("Mine", "is_a", "ExplosiveWeapon")
     kb.add_fact("Bomb", "is_a", "ExplosiveWeapon")
+
+    # ВАЖЛИВО: Граната також метальна зброя (множинне успадкування)
     kb.add_fact("Grenade", "is_a", "Throwable")
-    kb.add_fact("Bomb", "is_a", "Throwable")
 
     # РІВЕНЬ 4: Конкретні види
     # Мечі
     kb.add_fact("Longsword", "is_a", "Sword")
     kb.add_fact("Katana", "is_a", "Sword")
     kb.add_fact("Rapier", "is_a", "Sword")
-    kb.add_fact("Scimitar", "is_a", "Sword")
-    kb.add_fact("Claymore", "is_a", "Sword")
     kb.add_fact("Shortsword", "is_a", "Sword")
 
     # Сокири
     kb.add_fact("BattleAxe", "is_a", "Axe")
     kb.add_fact("Hatchet", "is_a", "Axe")
-    kb.add_fact("Tomahawk", "is_a", "Axe")
-    kb.add_fact("Halberd", "is_a", "Axe")
 
     # Списи
     kb.add_fact("Pike", "is_a", "Spear")
     kb.add_fact("Javelin", "is_a", "Spear")
-    kb.add_fact("Lance", "is_a", "Spear")
-    kb.add_fact("Trident", "is_a", "Spear")
 
     # Кинджали
     kb.add_fact("Stiletto", "is_a", "Dagger")
-    kb.add_fact("Dirk", "is_a", "Dagger")
     kb.add_fact("Tanto", "is_a", "Dagger")
 
     # Луки
     kb.add_fact("Longbow", "is_a", "Bow")
     kb.add_fact("Shortbow", "is_a", "Bow")
-    kb.add_fact("CompositeBow", "is_a", "Bow")
-    kb.add_fact("Recurve", "is_a", "Bow")
 
     # Вогнепальна зброя
     kb.add_fact("Pistol", "is_a", "Firearm")
     kb.add_fact("Rifle", "is_a", "Firearm")
-    kb.add_fact("Shotgun", "is_a", "Firearm")
-    kb.add_fact("MachineGun", "is_a", "Firearm")
 
     # Метальна зброя
     kb.add_fact("Shuriken", "is_a", "Throwable")
     kb.add_fact("ThrowingKnife", "is_a", "Throwable")
-    kb.add_fact("Boomerang", "is_a", "Throwable")
-    kb.add_fact("Chakram", "is_a", "Throwable")
 
     # ============================================================
-    # КОМПОНЕНТИ ЗБРОЇ (для зв'язків part_of/has)
+    # КОМПОНЕНТИ ЗБРОЇ
     # ============================================================
 
-    # Базові компоненти
     kb.add_fact("Component", "is_a", "Item")
     kb.add_fact("Blade", "is_a", "Component")
     kb.add_fact("Handle", "is_a", "Component")
@@ -293,133 +290,7 @@ def create_optimized_weapon_kb():
     kb.add_fact("String", "is_a", "Component")
     kb.add_fact("Trigger", "is_a", "Component")
     kb.add_fact("Barrel", "is_a", "Component")
-    kb.add_fact("Sight", "is_a", "Component")
     kb.add_fact("Magazine", "is_a", "Component")
-
-    # Типи лез
-    kb.add_fact("StraightBlade", "is_a", "Blade")
-    kb.add_fact("CurvedBlade", "is_a", "Blade")
-    kb.add_fact("SerratedBlade", "is_a", "Blade")
-
-    # Типи рукояток
-    kb.add_fact("WoodenHandle", "is_a", "Handle")
-    kb.add_fact("MetalHandle", "is_a", "Handle")
-    kb.add_fact("LeatherHandle", "is_a", "Handle")
-
-    # ============================================================
-    # ДВОСТОРОННІ ЗВ'ЯЗКИ: МЕЧІ ТА ЇХ КОМПОНЕНТИ
-    # ============================================================
-
-    # Longsword компоненти
-    kb.add_fact("StraightBlade", "part_of", "Longsword")
-    kb.add_fact("Longsword", "has", "StraightBlade")
-
-    kb.add_fact("MetalHandle", "part_of", "Longsword")
-    kb.add_fact("Longsword", "has", "MetalHandle")
-
-    kb.add_fact("Guard", "part_of", "Longsword")
-    kb.add_fact("Longsword", "has", "Guard")
-
-    kb.add_fact("Pommel", "part_of", "Longsword")
-    kb.add_fact("Longsword", "has", "Pommel")
-
-    # Katana компоненти
-    kb.add_fact("CurvedBlade", "part_of", "Katana")
-    kb.add_fact("Katana", "has", "CurvedBlade")
-
-    kb.add_fact("WoodenHandle", "part_of", "Katana")
-    kb.add_fact("Katana", "has", "WoodenHandle")
-
-    kb.add_fact("Guard", "part_of", "Katana")
-    kb.add_fact("Katana", "has", "Guard")
-
-    # Rapier компоненти
-    kb.add_fact("StraightBlade", "part_of", "Rapier")
-    kb.add_fact("Rapier", "has", "StraightBlade")
-
-    kb.add_fact("MetalHandle", "part_of", "Rapier")
-    kb.add_fact("Rapier", "has", "MetalHandle")
-
-    kb.add_fact("Guard", "part_of", "Rapier")
-    kb.add_fact("Rapier", "has", "Guard")
-
-    # Scimitar компоненти
-    kb.add_fact("CurvedBlade", "part_of", "Scimitar")
-    kb.add_fact("Scimitar", "has", "CurvedBlade")
-
-    kb.add_fact("MetalHandle", "part_of", "Scimitar")
-    kb.add_fact("Scimitar", "has", "MetalHandle")
-
-    # Dagger компоненти
-    kb.add_fact("StraightBlade", "part_of", "Stiletto")
-    kb.add_fact("Stiletto", "has", "StraightBlade")
-
-    kb.add_fact("MetalHandle", "part_of", "Stiletto")
-    kb.add_fact("Stiletto", "has", "MetalHandle")
-
-    # ============================================================
-    # ДВОСТОРОННІ ЗВ'ЯЗКИ: ЛУКИ ТА ЇХ КОМПОНЕНТИ
-    # ============================================================
-
-    # Longbow
-    kb.add_fact("String", "part_of", "Longbow")
-    kb.add_fact("Longbow", "has", "String")
-
-    kb.add_fact("WoodenHandle", "part_of", "Longbow")
-    kb.add_fact("Longbow", "has", "WoodenHandle")
-
-    # Crossbow
-    kb.add_fact("String", "part_of", "Crossbow")
-    kb.add_fact("Crossbow", "has", "String")
-
-    kb.add_fact("Trigger", "part_of", "Crossbow")
-    kb.add_fact("Crossbow", "has", "Trigger")
-
-    kb.add_fact("WoodenHandle", "part_of", "Crossbow")
-    kb.add_fact("Crossbow", "has", "WoodenHandle")
-
-    # ============================================================
-    # ДВОСТОРОННІ ЗВ'ЯЗКИ: ВОГНЕПАЛЬНА ЗБРОЯ
-    # ============================================================
-
-    # Pistol
-    kb.add_fact("Barrel", "part_of", "Pistol")
-    kb.add_fact("Pistol", "has", "Barrel")
-
-    kb.add_fact("Trigger", "part_of", "Pistol")
-    kb.add_fact("Pistol", "has", "Trigger")
-
-    kb.add_fact("MetalHandle", "part_of", "Pistol")
-    kb.add_fact("Pistol", "has", "MetalHandle")
-
-    kb.add_fact("Magazine", "part_of", "Pistol")
-    kb.add_fact("Pistol", "has", "Magazine")
-
-    # Rifle
-    kb.add_fact("Barrel", "part_of", "Rifle")
-    kb.add_fact("Rifle", "has", "Barrel")
-
-    kb.add_fact("Trigger", "part_of", "Rifle")
-    kb.add_fact("Rifle", "has", "Trigger")
-
-    kb.add_fact("WoodenHandle", "part_of", "Rifle")
-    kb.add_fact("Rifle", "has", "WoodenHandle")
-
-    kb.add_fact("Sight", "part_of", "Rifle")
-    kb.add_fact("Rifle", "has", "Sight")
-
-    kb.add_fact("Magazine", "part_of", "Rifle")
-    kb.add_fact("Rifle", "has", "Magazine")
-
-    # Shotgun
-    kb.add_fact("Barrel", "part_of", "Shotgun")
-    kb.add_fact("Shotgun", "has", "Barrel")
-
-    kb.add_fact("Trigger", "part_of", "Shotgun")
-    kb.add_fact("Shotgun", "has", "Trigger")
-
-    kb.add_fact("WoodenHandle", "part_of", "Shotgun")
-    kb.add_fact("Shotgun", "has", "WoodenHandle")
 
     # ============================================================
     # МАТЕРІАЛИ
@@ -428,290 +299,394 @@ def create_optimized_weapon_kb():
     kb.add_fact("Material", "is_a", "Item")
     kb.add_fact("Metal", "is_a", "Material")
     kb.add_fact("Wood", "is_a", "Material")
-    kb.add_fact("Leather", "is_a", "Material")
-    kb.add_fact("Plastic", "is_a", "Material")
+    kb.add_fact("ExplosiveMaterial", "is_a", "Material")
 
     # Типи металів
     kb.add_fact("Steel", "is_a", "Metal")
     kb.add_fact("Iron", "is_a", "Metal")
-    kb.add_fact("Bronze", "is_a", "Metal")
-    kb.add_fact("Silver", "is_a", "Metal")
-    kb.add_fact("Copper", "is_a", "Metal")
-    kb.add_fact("Aluminum", "is_a", "Metal")
 
-    # Вибухові матеріали - ДЕТАЛЬНА ІЄРАРХІЯ
-    kb.add_fact("ExplosiveMaterial", "is_a", "Material")
-    kb.add_fact("HighExplosive", "is_a", "ExplosiveMaterial")
-    kb.add_fact("LowExplosive", "is_a", "ExplosiveMaterial")
-    kb.add_fact("PrimaryExplosive", "is_a", "ExplosiveMaterial")
-    kb.add_fact("SecondaryExplosive", "is_a", "ExplosiveMaterial")
+    # Типи дерева
+    kb.add_fact("Oak", "is_a", "Wood")
+    kb.add_fact("Yew", "is_a", "Wood")
 
-    # Конкретні вибухові речовини
-    kb.add_fact("TNT", "is_a", "HighExplosive")
-    kb.add_fact("TNT", "is_a", "SecondaryExplosive")
-    kb.add_fact("RDX", "is_a", "HighExplosive")  # Hexogen
-    kb.add_fact("RDX", "is_a", "SecondaryExplosive")
-    kb.add_fact("PETN", "is_a", "HighExplosive")
-    kb.add_fact("CompositionC4", "is_a", "HighExplosive")
-    kb.add_fact("Dynamite", "is_a", "HighExplosive")
-    kb.add_fact("Gunpowder", "is_a", "LowExplosive")
-    kb.add_fact("Nitroglycerin", "is_a", "PrimaryExplosive")
-    kb.add_fact("LeadAzide", "is_a", "PrimaryExplosive")
+    # Вибухові речовини
+    kb.add_fact("TNT", "is_a", "ExplosiveMaterial")
+    kb.add_fact("Gunpowder", "is_a", "ExplosiveMaterial")
 
     # Хімічні елементи
     kb.add_fact("ChemicalElement", "is_a", "Material")
     kb.add_fact("Carbon", "is_a", "ChemicalElement")
     kb.add_fact("Nitrogen", "is_a", "ChemicalElement")
-    kb.add_fact("Oxygen", "is_a", "ChemicalElement")
-    kb.add_fact("Hydrogen", "is_a", "ChemicalElement")
 
-    # Типи дерева
-    kb.add_fact("Oak", "is_a", "Wood")
-    kb.add_fact("Ash", "is_a", "Wood")
-    kb.add_fact("Yew", "is_a", "Wood")
+    # ============================================================
+    # ЗВ'ЯЗКИ: ВСІМ МЕЧАМ СПІЛЬНИЙ Guard
+    # ============================================================
 
-    # TNT складається з хімічних елементів
-    kb.add_fact("Nitrogen", "part_of", "TNT")
-    kb.add_fact("TNT", "has", "Nitrogen")
-    kb.add_fact("Oxygen", "part_of", "TNT")
-    kb.add_fact("TNT", "has", "Oxygen")
-    kb.add_fact("Hydrogen", "part_of", "TNT")
-    kb.add_fact("TNT", "has", "Hydrogen")
+    # Guard є частиною всіх мечів (через категорію)
+    kb.add_fact("Guard", "part_of", "Sword")
+    kb.add_fact("Sword", "has", "Guard")
 
-    # RDX (Hexogen) також має схожий склад
-    kb.add_fact("Nitrogen", "part_of", "RDX")
-    kb.add_fact("RDX", "has", "Nitrogen")
-    kb.add_fact("Oxygen", "part_of", "RDX")
-    kb.add_fact("RDX", "has", "Oxygen")
-    kb.add_fact("Hydrogen", "part_of", "RDX")
-    kb.add_fact("RDX", "has", "Hydrogen")
+    # Усі мечі мають леза
+    kb.add_fact("Blade", "part_of", "Sword")
+    kb.add_fact("Sword", "has", "Blade")
 
-    # Порох також має ці елементи
-    kb.add_fact("Nitrogen", "part_of", "Gunpowder")
-    kb.add_fact("Gunpowder", "has", "Nitrogen")
-    kb.add_fact("Oxygen", "part_of", "Gunpowder")
-    kb.add_fact("Gunpowder", "has", "Oxygen")
+    # Усі мечі мають рукоятки
+    kb.add_fact("Handle", "part_of", "Sword")
+    kb.add_fact("Sword", "has", "Handle")
 
-    # Сталь складається з заліза та вуглецю
+    # Довгі мечі мають Pommel
+    kb.add_fact("Pommel", "part_of", "Longsword")
+    kb.add_fact("Longsword", "has", "Pommel")
+
+    kb.add_fact("Pommel", "part_of", "Rapier")
+    kb.add_fact("Rapier", "has", "Pommel")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: ВСІМ ЛУКАМ СПІЛЬНИЙ String
+    # ============================================================
+
+    kb.add_fact("String", "part_of", "Bow")
+    kb.add_fact("Bow", "has", "String")
+
+    kb.add_fact("Handle", "part_of", "Bow")
+    kb.add_fact("Bow", "has", "Handle")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: ВСІЙ ВОГНЕПАЛЬНІЙ ЗБРОЇ СПІЛЬНІ Barrel, Trigger, Magazine
+    # ============================================================
+
+    kb.add_fact("Barrel", "part_of", "Firearm")
+    kb.add_fact("Firearm", "has", "Barrel")
+
+    kb.add_fact("Trigger", "part_of", "Firearm")
+    kb.add_fact("Firearm", "has", "Trigger")
+
+    kb.add_fact("Magazine", "part_of", "Firearm")
+    kb.add_fact("Firearm", "has", "Magazine")
+
+    kb.add_fact("Handle", "part_of", "Firearm")
+    kb.add_fact("Firearm", "has", "Handle")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: ВСІМ КИНДЖАЛАМ СПІЛЬНЕ Blade
+    # ============================================================
+
+    kb.add_fact("Blade", "part_of", "Dagger")
+    kb.add_fact("Dagger", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Dagger")
+    kb.add_fact("Dagger", "has", "Handle")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: СОКИРАМ СПІЛЬНЕ Blade і Handle
+    # ============================================================
+
+    kb.add_fact("Blade", "part_of", "Axe")
+    kb.add_fact("Axe", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Axe")
+    kb.add_fact("Axe", "has", "Handle")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: СПИСАМ СПІЛЬНЕ Handle
+    # ============================================================
+
+    kb.add_fact("Blade", "part_of", "Spear")
+    kb.add_fact("Spear", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Spear")
+    kb.add_fact("Spear", "has", "Handle")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: МАТЕРІАЛИ В КОМПОНЕНТАХ (єднає всі види зброї)
+    # ============================================================
+
+    # Blade зроблено зі Steel
+    kb.add_fact("Steel", "part_of", "Blade")
+    kb.add_fact("Blade", "has", "Steel")
+
+    # Handle може бути з дерева або металу
+    kb.add_fact("Oak", "part_of", "Handle")
+    kb.add_fact("Handle", "has", "Oak")
+
+    kb.add_fact("Iron", "part_of", "Handle")
+    kb.add_fact("Handle", "has", "Iron")
+
+    # Guard із металу
+    kb.add_fact("Steel", "part_of", "Guard")
+    kb.add_fact("Guard", "has", "Steel")
+
+    # Pommel із металу
+    kb.add_fact("Iron", "part_of", "Pommel")
+    kb.add_fact("Pommel", "has", "Iron")
+
+    # Barrel зі Steel
+    kb.add_fact("Steel", "part_of", "Barrel")
+    kb.add_fact("Barrel", "has", "Steel")
+
+    # String з дерева Yew
+    kb.add_fact("Yew", "part_of", "String")
+    kb.add_fact("String", "has", "Yew")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: СТАЛЬ СКЛАДАЄТЬСЯ З ЗАЛІЗА ТА ВУГЛЕЦЮ
+    # ============================================================
+
     kb.add_fact("Iron", "part_of", "Steel")
     kb.add_fact("Steel", "has", "Iron")
+
     kb.add_fact("Carbon", "part_of", "Steel")
     kb.add_fact("Steel", "has", "Carbon")
+
+    # ============================================================
+    # ЗВ'ЯЗКИ: ВИБУХІВКА
+    # ============================================================
 
     # Граната містить TNT
     kb.add_fact("TNT", "part_of", "Grenade")
     kb.add_fact("Grenade", "has", "TNT")
 
-    # Бомба містить RDX (Composition C4)
-    kb.add_fact("RDX", "part_of", "Bomb")
-    kb.add_fact("Bomb", "has", "RDX")
-    kb.add_fact("CompositionC4", "part_of", "Bomb")
-    kb.add_fact("Bomb", "has", "CompositionC4")
+    # Бомба містить TNT
+    kb.add_fact("TNT", "part_of", "Bomb")
+    kb.add_fact("Bomb", "has", "TNT")
 
-    # Гвинтівка містить сталь та порох
+    # TNT складається з хімічних елементів
+    kb.add_fact("Nitrogen", "part_of", "TNT")
+    kb.add_fact("TNT", "has", "Nitrogen")
+
+    kb.add_fact("Carbon", "part_of", "TNT")
+    kb.add_fact("TNT", "has", "Carbon")
+
+    # Вогнепальна зброя використовує Gunpowder
+    kb.add_fact("Gunpowder", "part_of", "Firearm")
+    kb.add_fact("Firearm", "has", "Gunpowder")
+
+    # Gunpowder містить Nitrogen
+    kb.add_fact("Nitrogen", "part_of", "Gunpowder")
+    kb.add_fact("Gunpowder", "has", "Nitrogen")
+
+    kb.add_fact("Carbon", "part_of", "Gunpowder")
+    kb.add_fact("Gunpowder", "has", "Carbon")
+
+    # ============================================================
+    # ДОДАТКОВІ ПРАВИЛА ДЛЯ ПОВ'ЯЗУВАННЯ СУТНОСТЕЙ
+    # ============================================================
+
+    # ============================================================
+    # 1. ПОВ'ЯЗУВАННЯ МЕЧІВ МІЖ СОБОЮ
+    # ============================================================
+
+    # Конкретні мечі успадковують компоненти від Sword
+    # Longsword має всі компоненти Sword
+    kb.add_fact("Guard", "part_of", "Longsword")
+    kb.add_fact("Longsword", "has", "Guard")
+
+    kb.add_fact("Blade", "part_of", "Longsword")
+    kb.add_fact("Longsword", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Longsword")
+    kb.add_fact("Longsword", "has", "Handle")
+
+    # Shortsword має всі компоненти Sword
+    kb.add_fact("Guard", "part_of", "Shortsword")
+    kb.add_fact("Shortsword", "has", "Guard")
+
+    kb.add_fact("Blade", "part_of", "Shortsword")
+    kb.add_fact("Shortsword", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Shortsword")
+    kb.add_fact("Shortsword", "has", "Handle")
+
+    # Katana має всі компоненти Sword
+    kb.add_fact("Guard", "part_of", "Katana")
+    kb.add_fact("Katana", "has", "Guard")
+
+    kb.add_fact("Blade", "part_of", "Katana")
+    kb.add_fact("Katana", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Katana")
+    kb.add_fact("Katana", "has", "Handle")
+
+    # Rapier має всі компоненти Sword
+    kb.add_fact("Guard", "part_of", "Rapier")
+    kb.add_fact("Rapier", "has", "Guard")
+
+    kb.add_fact("Blade", "part_of", "Rapier")
+    kb.add_fact("Rapier", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Rapier")
+    kb.add_fact("Rapier", "has", "Handle")
+
+    # ============================================================
+    # 2. ПОВ'ЯЗУВАННЯ СОКИР З МЕЧАМИ ТА ІНШОЮ ЗБРОЄЮ
+    # ============================================================
+
+    # Конкретні сокири успадковують компоненти від Axe
+    kb.add_fact("Blade", "part_of", "BattleAxe")
+    kb.add_fact("BattleAxe", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "BattleAxe")
+    kb.add_fact("BattleAxe", "has", "Handle")
+
+    kb.add_fact("Blade", "part_of", "Hatchet")
+    kb.add_fact("Hatchet", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Hatchet")
+    kb.add_fact("Hatchet", "has", "Handle")
+
+    # ============================================================
+    # 3. ПОВ'ЯЗУВАННЯ КИНДЖАЛІВ
+    # ============================================================
+
+    kb.add_fact("Blade", "part_of", "Stiletto")
+    kb.add_fact("Stiletto", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Stiletto")
+    kb.add_fact("Stiletto", "has", "Handle")
+
+    kb.add_fact("Blade", "part_of", "Tanto")
+    kb.add_fact("Tanto", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Tanto")
+    kb.add_fact("Tanto", "has", "Handle")
+
+    # ============================================================
+    # 4. ПОВ'ЯЗУВАННЯ СПИСІВ
+    # ============================================================
+
+    kb.add_fact("Blade", "part_of", "Pike")
+    kb.add_fact("Pike", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Pike")
+    kb.add_fact("Pike", "has", "Handle")
+
+    kb.add_fact("Blade", "part_of", "Javelin")
+    kb.add_fact("Javelin", "has", "Blade")
+
+    kb.add_fact("Handle", "part_of", "Javelin")
+    kb.add_fact("Javelin", "has", "Handle")
+
+    # ============================================================
+    # 5. ПОВ'ЯЗУВАННЯ ЛУКІВ
+    # ============================================================
+
+    kb.add_fact("String", "part_of", "Longbow")
+    kb.add_fact("Longbow", "has", "String")
+
+    kb.add_fact("Handle", "part_of", "Longbow")
+    kb.add_fact("Longbow", "has", "Handle")
+
+    kb.add_fact("String", "part_of", "Shortbow")
+    kb.add_fact("Shortbow", "has", "String")
+
+    kb.add_fact("Handle", "part_of", "Shortbow")
+    kb.add_fact("Shortbow", "has", "Handle")
+
+    # ============================================================
+    # 6. ПОВ'ЯЗУВАННЯ ВОГНЕПАЛЬНОЇ ЗБРОЇ
+    # ============================================================
+
+    # Pistol має всі компоненти Firearm
+    kb.add_fact("Barrel", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Barrel")
+
+    kb.add_fact("Trigger", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Trigger")
+
+    kb.add_fact("Magazine", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Magazine")
+
+    kb.add_fact("Handle", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Handle")
+
+    kb.add_fact("Gunpowder", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Gunpowder")
+
+    # Rifle має всі компоненти Firearm
+    kb.add_fact("Barrel", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Barrel")
+
+    kb.add_fact("Trigger", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Trigger")
+
+    kb.add_fact("Magazine", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Magazine")
+
+    kb.add_fact("Handle", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Handle")
+
+    kb.add_fact("Gunpowder", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Gunpowder")
+
+    # ============================================================
+    # 7. ДОДАТКОВІ ЗВ'ЯЗКИ МАТЕРІАЛІВ З КОНКРЕТНОЮ ЗБРОЄЮ
+    # ============================================================
+
+    # Katana з дерев'яною рукояткою Oak
+    kb.add_fact("Oak", "part_of", "Katana")
+    kb.add_fact("Katana", "has", "Oak")
+
+    # Rifle з дерев'яною рукояткою Oak
+    kb.add_fact("Oak", "part_of", "Rifle")
+    kb.add_fact("Rifle", "has", "Oak")
+
+    # Longbow з дерева Yew
+    kb.add_fact("Yew", "part_of", "Longbow")
+    kb.add_fact("Longbow", "has", "Yew")
+
+    # BattleAxe зі сталі
+    kb.add_fact("Steel", "part_of", "BattleAxe")
+    kb.add_fact("BattleAxe", "has", "Steel")
+
+    # Longsword зі сталі
+    kb.add_fact("Steel", "part_of", "Longsword")
+    kb.add_fact("Longsword", "has", "Steel")
+
+    # Katana зі сталі
+    kb.add_fact("Steel", "part_of", "Katana")
+    kb.add_fact("Katana", "has", "Steel")
+
+    # Pistol зі сталі
+    kb.add_fact("Steel", "part_of", "Pistol")
+    kb.add_fact("Pistol", "has", "Steel")
+
+    # Rifle зі сталі
     kb.add_fact("Steel", "part_of", "Rifle")
     kb.add_fact("Rifle", "has", "Steel")
 
-    kb.add_fact("Casing", "part_of", "Grenade")
-    kb.add_fact("Grenade", "has", "Casing")
-    kb.add_fact("Casing", "part_of", "Bomb")
-    kb.add_fact("Bomb", "has", "Casing")
-
     # ============================================================
-    # ДВОСТОРОННІ ЗВ'ЯЗКИ: КОМПОНЕНТИ ТА МАТЕРІАЛИ
+    # 8. ПОВ'ЯЗУВАННЯ МЕТАЛЬНОЇ ЗБРОЇ
     # ============================================================
 
-    # StraightBlade зроблено зі сталі
-    kb.add_fact("Steel", "part_of", "StraightBlade")
-    kb.add_fact("StraightBlade", "has", "Steel")
+    kb.add_fact("Blade", "part_of", "ThrowingKnife")
+    kb.add_fact("ThrowingKnife", "has", "Blade")
 
-    # CurvedBlade зі сталі
-    kb.add_fact("Steel", "part_of", "CurvedBlade")
-    kb.add_fact("CurvedBlade", "has", "Steel")
+    kb.add_fact("Handle", "part_of", "ThrowingKnife")
+    kb.add_fact("ThrowingKnife", "has", "Handle")
 
-    # MetalHandle з заліза
-    kb.add_fact("Iron", "part_of", "MetalHandle")
-    kb.add_fact("MetalHandle", "has", "Iron")
-
-    # WoodenHandle з дуба
-    kb.add_fact("Oak", "part_of", "WoodenHandle")
-    kb.add_fact("WoodenHandle", "has", "Oak")
-
-    # LeatherHandle зі шкіри
-    kb.add_fact("Leather", "part_of", "LeatherHandle")
-    kb.add_fact("LeatherHandle", "has", "Leather")
-
-    # Barrel зі сталі
-    kb.add_fact("Steel", "part_of", "Barrel")
-    kb.add_fact("Barrel", "has", "Steel")
-
-    # String (тятива)
-    kb.add_fact("Leather", "part_of", "String")
-    kb.add_fact("String", "has", "Leather")
+    kb.add_fact("Steel", "part_of", "Shuriken")
+    kb.add_fact("Shuriken", "has", "Steel")
 
     # ============================================================
-    # ХАРАКТЕРИСТИКИ ЗБРОЇ
+    # 9. ДОДАТКОВІ ЗВ'ЯЗКИ ДЛЯ IRON ТА OAK
     # ============================================================
 
-    kb.add_fact("Property", "is_a", "Item")
-    kb.add_fact("Weight", "is_a", "Property")
-    kb.add_fact("Length", "is_a", "Property")
-    kb.add_fact("Damage", "is_a", "Property")
-    kb.add_fact("Range", "is_a", "Property")
-    kb.add_fact("Speed", "is_a", "Property")
+    # Iron також у різних компонентах
+    kb.add_fact("Iron", "part_of", "Blade")
+    kb.add_fact("Blade", "has", "Iron")
 
-    # Значення характеристик
-    kb.add_fact("Heavy", "is_a", "Weight")
-    kb.add_fact("Light", "is_a", "Weight")
-    kb.add_fact("Medium", "is_a", "Weight")
+    kb.add_fact("Iron", "part_of", "Barrel")
+    kb.add_fact("Barrel", "has", "Iron")
 
-    # Спільні властивості через матеріали
-    kb.add_fact("ExplosiveMaterial", "has", "ExplosiveProperty")
-    kb.add_fact("TNT", "has", "HighExplosive")
-    kb.add_fact("Hexogen", "has", "VeryHighExplosive")
-    kb.add_fact("Gunpowder", "has", "LowExplosive")
+    # Oak у багатьох рукоятках
+    kb.add_fact("Oak", "part_of", "Longbow")
+    kb.add_fact("Longbow", "has", "Oak")
 
-    # Властивості зброї, що походять від матеріалів
-    kb.add_fact("Grenade", "has", "ExplosiveDamage")  # бо має TNT
-    kb.add_fact("Bomb", "has", "ExplosiveDamage")  # бо має Hexogen
-    kb.add_fact("Firearm", "has", "KineticDamage")  # бо має Gunpowder
+    kb.add_fact("Oak", "part_of", "BattleAxe")
+    kb.add_fact("BattleAxe", "has", "Oak")
 
-
-    # Детонатор може використовуватись у різних вибухових пристроях
-    kb.add_fact("Detonator", "part_of", "Bomb")
-    kb.add_fact("Bomb", "has", "Detonator")
-    kb.add_fact("Detonator", "part_of", "Mine")
-    kb.add_fact("Mine", "has", "Detonator")
-
-    kb.add_fact("Long", "is_a", "Length")
-    kb.add_fact("Short", "is_a", "Length")
-
-    kb.add_fact("HighDamage", "is_a", "Damage")
-    kb.add_fact("MediumDamage", "is_a", "Damage")
-    kb.add_fact("LowDamage", "is_a", "Damage")
-
-    kb.add_fact("LongRange", "is_a", "Range")
-    kb.add_fact("ShortRange", "is_a", "Range")
-
-    kb.add_fact("Fast", "is_a", "Speed")
-    kb.add_fact("Slow", "is_a", "Speed")
-
-    # ============================================================
-    # ДВОСТОРОННІ ЗВ'ЯЗКИ: ЗБРОЯ ТА ХАРАКТЕРИСТИКИ
-    # ============================================================
-
-    # Longsword
-    kb.add_fact("Longsword", "has", "Heavy")
-    kb.add_fact("Longsword", "has", "Long")
-    kb.add_fact("Longsword", "has", "HighDamage")
-    kb.add_fact("Longsword", "has", "Slow")
-
-    # Katana
-    kb.add_fact("Katana", "has", "Medium")
-    kb.add_fact("Katana", "has", "Long")
-    kb.add_fact("Katana", "has", "HighDamage")
-    kb.add_fact("Katana", "has", "Fast")
-
-    # Rapier
-    kb.add_fact("Rapier", "has", "Light")
-    kb.add_fact("Rapier", "has", "Long")
-    kb.add_fact("Rapier", "has", "MediumDamage")
-    kb.add_fact("Rapier", "has", "Fast")
-
-    # Stiletto
-    kb.add_fact("Stiletto", "has", "Light")
-    kb.add_fact("Stiletto", "has", "Short")
-    kb.add_fact("Stiletto", "has", "MediumDamage")
-    kb.add_fact("Stiletto", "has", "Fast")
-
-    # BattleAxe
-    kb.add_fact("BattleAxe", "has", "Heavy")
-    kb.add_fact("BattleAxe", "has", "Long")
-    kb.add_fact("BattleAxe", "has", "HighDamage")
-    kb.add_fact("BattleAxe", "has", "Slow")
-
-    # Longbow
-    kb.add_fact("Longbow", "has", "Medium")
-    kb.add_fact("Longbow", "has", "Long")
-    kb.add_fact("Longbow", "has", "MediumDamage")
-    kb.add_fact("Longbow", "has", "LongRange")
-
-    # Pistol
-    kb.add_fact("Pistol", "has", "Light")
-    kb.add_fact("Pistol", "has", "Short")
-    kb.add_fact("Pistol", "has", "MediumDamage")
-    kb.add_fact("Pistol", "has", "ShortRange")
-    kb.add_fact("Pistol", "has", "Fast")
-
-    # Rifle
-    kb.add_fact("Rifle", "has", "Medium")
-    kb.add_fact("Rifle", "has", "Long")
-    kb.add_fact("Rifle", "has", "HighDamage")
-    kb.add_fact("Rifle", "has", "LongRange")
-
-    # ============================================================
-    # ІСТОРИЧНІ ПЕРІОДИ (для контексту)
-    # ============================================================
-
-    kb.add_fact("Period", "is_a", "Item")
-    kb.add_fact("Medieval", "is_a", "Period")
-    kb.add_fact("Renaissance", "is_a", "Period")
-    kb.add_fact("Feudal", "is_a", "Period")
-    kb.add_fact("Modern", "is_a", "Period")
-
-    # Зброя має історичний період
-    kb.add_fact("Longsword", "has", "Medieval")
-    kb.add_fact("Claymore", "has", "Medieval")
-    kb.add_fact("BattleAxe", "has", "Medieval")
-
-    kb.add_fact("Rapier", "has", "Renaissance")
-
-    kb.add_fact("Katana", "has", "Feudal")
-    kb.add_fact("Tanto", "has", "Feudal")
-
-    kb.add_fact("Pistol", "has", "Modern")
-    kb.add_fact("Rifle", "has", "Modern")
-    kb.add_fact("Shotgun", "has", "Modern")
-
-    # ============================================================
-    # СТИЛІ БОЮ
-    # ============================================================
-
-    kb.add_fact("CombatStyle", "is_a", "Item")
-    kb.add_fact("Dueling", "is_a", "CombatStyle")
-    kb.add_fact("HeavyStrike", "is_a", "CombatStyle")
-    kb.add_fact("QuickAttack", "is_a", "CombatStyle")
-    kb.add_fact("Archery", "is_a", "CombatStyle")
-    kb.add_fact("Tactical", "is_a", "CombatStyle")
-
-    # Зброя використовується для певних стилів
-    kb.add_fact("Rapier", "has", "Dueling")
-    kb.add_fact("Longsword", "has", "HeavyStrike")
-    kb.add_fact("Katana", "has", "QuickAttack")
-    kb.add_fact("Stiletto", "has", "QuickAttack")
-    kb.add_fact("Longbow", "has", "Archery")
-    kb.add_fact("Rifle", "has", "Tactical")
-
-    # ============================================================
-    # ПЕРЕХРЕСНІ ЗВ'ЯЗКИ (щоб різні види зброї були пов'язані)
-    # ============================================================
-
-    # Зброя з однаковими компонентами
-    # Guard пов'язує мечі
-    kb.add_fact("Guard", "part_of", "Sword")
-    kb.add_fact("Sword", "has", "Guard")
-
-    # Trigger пов'язує вогнепальну зброю та арбалет
-    kb.add_fact("Trigger", "part_of", "Firearm")
-    kb.add_fact("Firearm", "has", "Trigger")
-
-    # String пов'язує луки
-    kb.add_fact("String", "part_of", "Bow")
-    kb.add_fact("Bow", "has", "String")
-
-    # Steel - спільний матеріал для багатьох клинків
-    kb.add_fact("Steel", "part_of", "Blade")
-    kb.add_fact("Blade", "has", "Steel")
+    kb.add_fact("Oak", "part_of", "Pike")
+    kb.add_fact("Pike", "has", "Oak")
 
     return kb
 
