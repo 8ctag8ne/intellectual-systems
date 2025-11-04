@@ -409,8 +409,8 @@ def create_optimized_weapon_kb():
     kb.add_fact("Oak", "part_of", "Handle")
     kb.add_fact("Handle", "has", "Oak")
 
-    kb.add_fact("Iron", "part_of", "Handle")
-    kb.add_fact("Handle", "has", "Iron")
+    # kb.add_fact("Iron", "part_of", "Handle")
+    # kb.add_fact("Handle", "has", "Iron")
 
     # Guard із металу
     kb.add_fact("Steel", "part_of", "Guard")
