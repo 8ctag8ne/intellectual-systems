@@ -101,7 +101,7 @@ def run_training_visualized(generations=10):
     print(f"✓ Початок тренування {generations} поколінь")
     print(f"  Популяція: {POPULATION_SIZE} змійок одночасно")
     print(f"  Їжі на полі: {FOOD_COUNT}")
-    print(f"  Натисніть ESC для виходу\n")
+    print("  Натисніть ESC для виходу\n")
     
     try:
         for gen in range(generations):
@@ -116,8 +116,7 @@ def run_training_visualized(generations=10):
             completed = run_simulation_visualized(
                 env, 
                 generation=gen + 1, 
-                best_fitness=ga.best_fitness,
-                title=f"Тренування - Покоління {gen + 1}"
+                best_fitness=ga.best_fitness
             )
             
             if not completed:
@@ -251,7 +250,7 @@ def watch_best_snake(genome, steps=MAX_STEPS):
     )
     
     # Фінальна статистика
-    print(f"\n✓ Симуляція завершена")
+    print("\n✓ Симуляція завершена")
     print(f"  Кроків: {snake.steps}")
     print(f"  Довжина: {snake.length}")
     print(f"  З'їдено їжі: {snake.food_eaten}")
