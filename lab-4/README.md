@@ -419,7 +419,7 @@ This project demonstrates:
 
 ## 👤 Author
 
-**[Your Name Here]**
+**Yahotin Nazarii**
 
 ---
 

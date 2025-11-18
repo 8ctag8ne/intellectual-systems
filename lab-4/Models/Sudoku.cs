@@ -6,7 +6,7 @@ using System.Reflection.Metadata.Ecma335;
 namespace SudokuCSP.Models
 {
     /// <summary>
-    /// Manages the 6×6 Sudoku grid with 2×3 blocks
+    /// Manages the Size × Size Sudoku grid with BlockRows × BlockCols blocks
     /// </summary>
     public class Sudoku
     {
@@ -85,7 +85,6 @@ namespace SudokuCSP.Models
 
         public void Print()
         {
-            // Console.WriteLine("  " + string.Join(" ", Enumerable.Range(0, Size)));
             string header = string.Empty;
 
             header += "  ";
